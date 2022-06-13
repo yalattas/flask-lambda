@@ -2,6 +2,7 @@
 # ignoring static files
 /static/
 /media/
+/docker/
 .idea/
 uploads/
 # Created by https://www.toptal.com/developers/gitignore/api/django,python,vim
