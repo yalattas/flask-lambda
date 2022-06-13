@@ -3,6 +3,9 @@
 /static/
 /media/
 /docker/
+quicksight/app/docker
+quicksight/app/docker/
+.db
 .idea/
 uploads/
 # Created by https://www.toptal.com/developers/gitignore/api/django,python,vim

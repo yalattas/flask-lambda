@@ -21,7 +21,7 @@ services:
     image: amazon/dynamodb-local:latest
     command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
     volumes:
-      - "/docker/dynamodb:/home/dynamodblocal/data"
+      - "./docker/dynamodb:/home/dynamodblocal/data"
     working_dir: /home/dynamodblocal
     ports:
       - "8000:8000"
@@ -30,5 +30,5 @@ networks:
   default:
     name: app_custom_network
 
-volumes:
-  docker:
+# volumes:
+#   docker:

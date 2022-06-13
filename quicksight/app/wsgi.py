@@ -2,7 +2,8 @@ import json
 from flask_lambda import FlaskLambda
 
 from handler.error import general_error
-from config.clients import ssm
+from config.clients import ssm, db_table
+from config.constant import DASHBOARD_DYNAMODB_TABLE
 
 app = FlaskLambda(__name__)
 app.config.update(
@@ -15,7 +16,8 @@ def test():
     # return aws_invoke(app,event,block_headers=False)
     statusCode = 200
     try:
-        print('hello')
+        content = db_table(DASHBOARD_DYNAMODB_TABLE).scan()
+        print(content)
     except Exception as e:
         statusCode = 500
         general_error(e)
