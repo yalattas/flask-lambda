@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  flask micro-app
+  Auther: Yaser Alattas
+  This app is AWS SAM friendly, with ready to GitLab CI. Yet, many buckets and roles are missing here and must be provisioned in AWS first.
+  Refer to AWS SAM pipeline required resources
+
+Parameters:
+  envTag:
+    Type: String
+    Default: dev
+
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref envTag
+    Tags:
+      Cost Center: !Ref envTag
+
+Resources:
+# flask app -----------------------------------------------------
+  flaskApp:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./quicksight/app
+      DockerTag: !Ref envTag
+    Properties:
+      FunctionName: !Join [ "_", [ project, quicksight, app, !Ref envTag ] ]
+      PackageType: Image
+      CodeUri: quicksight/app
+      # Handler and Runtime cannot be present when PackageType is Image
+      # Handler: update_hiring/app.lambda_handler
+      # Runtime: python3.9
+      MemorySize: 128
+      Tracing: Active
+      Timeout: 30
+      Policies:
+        - AWSLambdaExecute # Managed policy
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+                - ssm:GetParametersByPath
+              Resource:
+                - !Join ["_",[!Join ["/", ['arn:aws:ssm:eu-west-*:*:parameter', !Ref envTag]], "*"]]
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:BatchGetItem
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:Scan
+                - dynamodb:BatchWriteItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+              Resource:
+                - !GetAtt userTable.Arn
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref envTag
+          USER_DYNAMODB_TABLE: !Ref userTable
+          DASHBOARD_DYNAMODB_TABLE: !Ref userTable
+      Events:
+        getDashboards:
+          Type: Api
+          Properties:
+            Path: /test
+            Method: get
+            RestApiId: !Ref testAPI
+# flask app -----------------------------------------------------
+  testAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Join [ "_", [ quicksight, test, api, !Ref envTag ] ]
+      StageName: !Ref envTag
+      Cors:
+        AllowHeaders: "'X-Forwarded-For'"
+        # AllowHeaders: "'X-Forwarded-Proto'"
+# user table ----------------------------------------------------
+  userTable:
+    Type: AWS::Serverless::SimpleTable # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      TableName: !Join [ "-", [ quicksight, user, !Ref envTag ] ]
+      PrimaryKey:
+        Name: id
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        Cost Center: !Ref envTag
+        AppType: Serverless
+      SSESpecification:
+        SSEEnabled: true
+# user table ----------------------------------------------------

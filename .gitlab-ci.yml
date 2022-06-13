@@ -1,0 +1,242 @@
+# Define the following variables in protected branch before attempting to trigger the following
+# 0- AWS_ACCESS_KEY_ID (has write access to S2 bucket as well as CloudFront)
+# 2- AWS_SECRET_ACCESS_KEY
+# 3- AWS_DEFAULT_REGION
+# 4- AWS_EXECUTION_ROLE_ARN (for pipeline, example:  arn:aws:iam::12345678912:role/PiplelineExecution-role)
+# 5- AWS_CLOUDFORMATION_EXECUTION_ROLE (exactly the same as AWS tenant IAM role resource, example: arn:aws:iam::12345678912:role/PiplelineExecution-role)
+# 6- AWS_LAMBDA_ARTIFACT_BUCKET (for Lambda artifact, example: artifact-bucket-dev)
+# 7- AWS_CLOUDFORMATION_BUCKET (for CloudFormation template. example: template-bucket-dev)
+# 8- AWS_ECR_REGISTRY (for Lambda Docker images)
+# 9- AWS_STACK_NAME (defined any stack name then cloudformation will capture it and create new STACK)
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  SAM_TEMPLATE: template.yaml
+  PIPELINE_USER_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+  PIPELINE_USER_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+
+image: docker:19.03.15
+
+services:
+  - docker:19.03.15-dind
+
+
+stages:
+  - test
+  - build
+  - deploy
+
+
+sast:
+  stage: test
+include:
+- template: Security/SAST.gitlab-ci.yml
+
+build_spot:
+  stage: build
+  environment:
+    name: spot
+  only:
+    - spot
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - sam build --template $SAM_TEMPLATE --use-container
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_build
+    - sam package --s3-bucket $AWS_LAMBDA_ARTIFACT_BUCKET
+                  --image-repository $AWS_ECR_REGISTRY
+                  --region $AWS_DEFAULT_REGION
+                  --config-env envTag=${CI_COMMIT_BRANCH}
+                  --output-template-file packaged.yaml
+  artifacts:
+    paths:
+      - packaged.yaml
+  allow_failure: false
+
+deploy_spot:
+  stage: deploy
+  environment:
+    name: spot
+  only:
+    - spot
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_deploy
+    - sam deploy --stack-name $AWS_STACK_NAME
+                --template packaged.yaml
+                --capabilities CAPABILITY_IAM
+                --region $AWS_DEFAULT_REGION
+                --s3-bucket $AWS_CLOUDFORMATION_BUCKET
+                --image-repository $AWS_ECR_REGISTRY
+                --no-fail-on-empty-changeset
+                --role-arn $AWS_CLOUDFORMATION_EXECUTION_ROLE
+                --parameter-overrides envTag=${CI_COMMIT_BRANCH}
+  allow_failure: false
+
+build_dev:
+  stage: build
+  environment:
+    name: dev
+  only:
+    - dev
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - sam build --template $SAM_TEMPLATE --use-container
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_build
+    - sam package --s3-bucket $AWS_LAMBDA_ARTIFACT_BUCKET
+                  --image-repository $AWS_ECR_REGISTRY
+                  --region $AWS_DEFAULT_REGION
+                  --config-env envTag=${CI_COMMIT_BRANCH}
+                  --output-template-file packaged.yaml
+  artifacts:
+    paths:
+      - packaged.yaml
+  allow_failure: false
+
+deploy_dev:
+  stage: deploy
+  environment:
+    name: dev
+  only:
+    - dev
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_deploy
+    - sam deploy --stack-name $AWS_STACK_NAME
+                --template packaged.yaml
+                --capabilities CAPABILITY_IAM
+                --region $AWS_DEFAULT_REGION
+                --s3-bucket $AWS_CLOUDFORMATION_BUCKET
+                --image-repository $AWS_ECR_REGISTRY
+                --no-fail-on-empty-changeset
+                --role-arn $AWS_CLOUDFORMATION_EXECUTION_ROLE
+                --parameter-overrides envTag=${CI_COMMIT_BRANCH}
+  allow_failure: false
+
+build_uat:
+  stage: build
+  environment:
+    name: uat
+  only:
+    - uat
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - sam build --template $SAM_TEMPLATE --use-container
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_build
+    - sam package --s3-bucket $AWS_LAMBDA_ARTIFACT_BUCKET
+                  --image-repository $AWS_ECR_REGISTRY
+                  --region $AWS_DEFAULT_REGION
+                  --config-env envTag=${CI_COMMIT_BRANCH}
+                  --output-template-file packaged.yaml
+  artifacts:
+    paths:
+      - packaged.yaml
+  allow_failure: false
+
+deploy_uat:
+  stage: deploy
+  environment:
+    name: uat
+  only:
+    - uat
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_deploy
+    - sam deploy --stack-name $AWS_STACK_NAME
+                --template packaged.yaml
+                --capabilities CAPABILITY_IAM
+                --region $AWS_DEFAULT_REGION
+                --s3-bucket $AWS_CLOUDFORMATION_BUCKET
+                --image-repository $AWS_ECR_REGISTRY
+                --no-fail-on-empty-changeset
+                --role-arn $AWS_CLOUDFORMATION_EXECUTION_ROLE
+                --parameter-overrides envTag=${CI_COMMIT_BRANCH}
+  allow_failure: false
+
+build_prod:
+  stage: build
+  environment:
+    name: prod
+  only:
+    - main
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - sam build --template $SAM_TEMPLATE --use-container
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_build
+    - sam package --s3-bucket $AWS_LAMBDA_ARTIFACT_BUCKET
+                  --image-repository $AWS_ECR_REGISTRY
+                  --region $AWS_DEFAULT_REGION
+                  --config-env envTag=${CI_COMMIT_BRANCH}
+                  --output-template-file packaged.yaml
+  artifacts:
+    paths:
+      - packaged.yaml
+  allow_failure: false
+
+deploy_prod:
+  stage: deploy
+  environment:
+    name: prod
+  only:
+    - main
+  before_script:
+    - apk add --update python3 py-pip python3-dev build-base
+    - pip install markupsafe==2.0.1
+    - pip install awscli aws-sam-cli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - . assume-role.sh $AWS_EXECUTION_ROLE_ARN ${CI_COMMIT_BRANCH}_deploy
+    - sam deploy --stack-name $AWS_STACK_NAME
+                --template packaged.yaml
+                --capabilities CAPABILITY_IAM
+                --region $AWS_DEFAULT_REGION
+                --s3-bucket $AWS_CLOUDFORMATION_BUCKET
+                --image-repository $AWS_ECR_REGISTRY
+                --no-fail-on-empty-changeset
+                --role-arn $AWS_CLOUDFORMATION_EXECUTION_ROLE
+                --parameter-overrides envTag=${CI_COMMIT_BRANCH}
+  allow_failure: false
