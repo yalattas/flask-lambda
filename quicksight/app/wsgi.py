@@ -8,7 +8,7 @@ from controller.dashboard import DashboardController
 app = FlaskLambda(__name__)
 app.config.update(
     TESTING=True,
-    SECRET_KEY='e945f086-f02c-42dd-86bf-17720cbf9f7d',
+    SECRET_KEY='<KEY>',
     PREFERRED_URL_SCHEME='http'
 )
 app.url_map.strict_slashes = False
