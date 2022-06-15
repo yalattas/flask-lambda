@@ -71,21 +71,37 @@ Resources:
           USER_DYNAMODB_TABLE: !Ref userTable
           DASHBOARD_DYNAMODB_TABLE: !Ref userTable
       Events:
+        getDashboard:
+          Type: Api
+          Properties:
+            Path: /api/v1/dashboard
+            Method: get
+            RestApiId: !Ref getdashboard
         getDashboards:
           Type: Api
           Properties:
-            Path: /test
+            Path: /api/v1/dashboards
             Method: get
-            RestApiId: !Ref testAPI
+            RestApiId: !Ref getdashboards
 # flask app -----------------------------------------------------
-  testAPI:
+# apis ----------------------------------------------------------
+  getdashboard:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Join [ "_", [ quicksight, test, api, !Ref envTag ] ]
+      Name: !Join [ "_", [ quicksight, get, dashboard, api, !Ref envTag ] ]
       StageName: !Ref envTag
       Cors:
         AllowHeaders: "'X-Forwarded-For'"
         # AllowHeaders: "'X-Forwarded-Proto'"
+  getdashboards:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Join [ "_", [ quicksight, get, dashboards, api, !Ref envTag ] ]
+      StageName: !Ref envTag
+      Cors:
+        AllowHeaders: "'X-Forwarded-For'"
+        # AllowHeaders: "'X-Forwarded-Proto'"
+# apis ----------------------------------------------------------
 # user table ----------------------------------------------------
   userTable:
     Type: AWS::Serverless::SimpleTable # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
